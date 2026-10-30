@@ -20,7 +20,7 @@ use std::sync::OnceLock;
 
 pub mod adapters;
 pub mod family;
-#[cfg(all(target_os = "macos", feature = "shell"))]
+#[cfg(feature = "shell")]
 pub mod incoming;
 pub mod log;
 #[cfg(feature = "shell")]

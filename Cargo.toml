@@ -1,6 +1,6 @@
 [package]
 name = "core9000"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "The shared core of the 9000 series (text9000, splice9000, wave9000, grace9000, leaf9000): window, adapters, the family protocol and the sisters."
 license = "MIT"

@@ -76,9 +76,9 @@ leaf9000**.
 
 ```toml
 [dependencies]
-core9000 = { git = "https://github.com/solacecasino/core9000", tag = "v0.1.1" }
+core9000 = { git = "https://github.com/solacecasino/core9000", tag = "v0.1.2" }
 # leaf9000, which draws its own window:
-# core9000 = { git = "...", tag = "v0.1.1", default-features = false }
+# core9000 = { git = "...", tag = "v0.1.2", default-features = false }
 ```
 
 Call `core9000::init(&APP)` first, with the app's `core9000::App`: its name,
