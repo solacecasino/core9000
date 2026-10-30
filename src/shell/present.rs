@@ -66,6 +66,7 @@ mod mac {
         fn IOSurfaceUnlock(surface: *mut c_void, options: u32, seed: *mut u32) -> i32;
         fn IOSurfaceGetBaseAddress(surface: *mut c_void) -> *mut c_void;
         fn IOSurfaceGetBytesPerRow(surface: *mut c_void) -> usize;
+        fn IOSurfaceIsInUse(surface: *mut c_void) -> u8;
     }
 
     #[link(name = "CoreFoundation", kind = "framework")]
@@ -73,14 +74,24 @@ mod mac {
         fn CFRelease(object: *const c_void);
     }
 
-    /// Two IOSurfaces: one on screen while the other is drawn, then they
-    /// swap. With a single one, the window server could show a frame half
-    /// drawn, which a playing video makes plain to see.
+    /// How many IOSurfaces take turns.
+    const BUFFERS: usize = 3;
+
+    /// IOSurfaces that take turns: one on screen while another is drawn.
+    /// A buffer is only drawn into once the window server is done with it
+    /// (`IOSurfaceIsInUse`): it can still be reading one that has left the
+    /// screen, and drawing into that shows a frame half drawn. Two weren't
+    /// enough when frames came faster than the screen shows them (moving a
+    /// zoomed photo around), hence three; if all are busy, the frame waits.
     pub struct Surface {
         root: Retained<CALayer>,
         layer: Retained<CALayer>,
-        surfaces: [*mut c_void; 2],
-        drawn: [bool; 2],
+        surfaces: [*mut c_void; BUFFERS],
+        /// When each was last put on screen, counted in frames shown; 0:
+        /// never.
+        shown: [u64; BUFFERS],
+        /// Frames shown so far.
+        serial: u64,
         /// The one on screen.
         front: usize,
         size: (u32, u32),
@@ -114,8 +125,9 @@ mod mac {
             Ok(Self {
                 root,
                 layer,
-                surfaces: [std::ptr::null_mut(); 2],
-                drawn: [false; 2],
+                surfaces: [std::ptr::null_mut(); BUFFERS],
+                shown: [0; BUFFERS],
+                serial: 0,
                 front: 0,
                 size: (0, 0),
             })
@@ -157,7 +169,7 @@ mod mac {
                 }
             }
             self.size = (width, height);
-            self.drawn = [false; 2];
+            self.shown = [0; BUFFERS];
             Ok(())
         }
 
@@ -172,7 +184,19 @@ mod mac {
             if new {
                 self.create(width, height)?;
             }
-            let back = 1 - self.front;
+            // The most recently shown buffer the window server has let go
+            // of: the least to redraw.
+            // SAFETY: the surfaces are live.
+            let free = (0..BUFFERS).filter(|&i| new || (i != self.front && unsafe { IOSurfaceIsInUse(self.surfaces[i]) } == 0));
+            let Some(back) = free.max_by_key(|&i| self.shown[i]) else {
+                // All busy for a moment: try again next time round.
+                window.request_redraw();
+                return Ok(());
+            };
+            let age = match self.shown[back] {
+                0 => 0,
+                at => u8::try_from(self.serial - at + 1).unwrap_or(0),
+            };
             let surface = self.surfaces[back];
             // SAFETY: the surface is live and not on screen; the pixels are
             // only touched while it's locked.
@@ -187,15 +211,15 @@ mod mac {
                     width: width as usize,
                     height: height as usize,
                 };
-                // The back buffer was last drawn two shown frames ago.
-                let damage = paint(&mut target, if self.drawn[back] { 2 } else { 0 });
+                let damage = paint(&mut target, age);
                 IOSurfaceUnlock(surface, 0, std::ptr::null_mut());
                 damage
             };
-            self.drawn[back] = true;
             if damage.is_empty() && !new {
                 return Ok(());
             }
+            self.serial += 1;
+            self.shown[back] = self.serial;
             self.front = back;
             CATransaction::begin();
             CATransaction::setDisableActions(true);
