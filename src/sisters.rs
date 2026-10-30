@@ -76,7 +76,8 @@ pub const ALL: [Sister; 5] = [
         kind: "writing app",
         bundle_id: "app.text9000.editor",
         owns: &["t9k", "folio"],
-        opens: &["md", "txt"],
+        // Its own documents only: a plain text file isn't one.
+        opens: &[],
         repo: "https://github.com/solacecasino/text9000",
         accent: [0x3f, 0xd6, 0x8f],
     },
