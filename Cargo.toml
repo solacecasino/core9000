@@ -1,0 +1,43 @@
+[package]
+name = "core9000"
+version = "0.1.0"
+edition = "2024"
+description = "The shared core of the 9000 series (text9000, splice9000, wave9000, grace9000, leaf9000): window, adapters, the family protocol and the sisters."
+license = "MIT"
+repository = "https://github.com/solacecasino/core9000"
+
+[features]
+default = ["shell"]
+# The CPU-drawn egui window. leaf9000 draws its own and leaves it out.
+shell = ["dep:egui", "dep:egui-winit", "dep:winit", "dep:accesskit_winit", "dep:raw-window-handle", "dep:softbuffer", "dep:objc2-quartz-core", "dep:objc2-core-foundation"]
+
+[dependencies]
+egui = { version = "0.37.0", optional = true, features = ["default_fonts"] }
+egui-winit = { version = "0.37.0", optional = true, default-features = false, features = [
+    "accesskit", "clipboard", "links", "wayland", "x11",
+] }
+winit = { version = "0.30.13", optional = true, default-features = false, features = ["rwh_06", "wayland", "wayland-dlopen", "x11"] }
+accesskit_winit = { version = "0.34.1", optional = true }
+raw-window-handle = { version = "0.6.2", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+# Installing adapters from their zips.
+zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+# macOS: shared buffers for the window, files the system hands over, the
+# Trash, and finding sister apps.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString", "NSDictionary", "NSValue", "NSData", "NSURL", "NSArray"] }
+objc2-quartz-core = { version = "0.3.2", optional = true, default-features = false, features = ["std", "CALayer", "CATransaction", "objc2-core-foundation"] }
+objc2-core-foundation = { version = "0.3.2", optional = true, default-features = false, features = ["std", "CFCGTypes"] }
+
+# Windows and Linux: softbuffer hands the drawn pixels to the window, and
+# removed adapters go to the system's trash.
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+trash = "5.2.9"
+softbuffer = { version = "0.4.8", optional = true, default-features = false, features = ["x11", "x11-dlopen", "wayland", "wayland-dlopen"] }
